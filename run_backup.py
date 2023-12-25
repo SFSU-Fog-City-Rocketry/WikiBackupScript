@@ -16,28 +16,50 @@
 import subprocess
 import sys
 import time
+import logging
 
 # Define variables
 DOCKER_CONTAINER_NAME = 'FCR_Wiki'
-DOCKER_COMMAND_PATH = '/var/www/html'
 BACKUP_FILE_DATE = time.strftime('%Y%m%d')
 BACKUP_FILE_NAME = f"backup_{BACKUP_FILE_DATE}.sqlite"
-DOCKER_BACKUP_PATH = f"{DOCKER_COMMAND_PATH}/backups/{BACKUP_FILE_NAME}"
-DOCKER_COMMAND = f"php {DOCKER_COMMAND_PATH}/maintenance/run.php --server wiki.fogcityrocketry.com /var/www/html/maintenance/SqliteMaintenance.php --backup-to {DOCKER_BACKUP_PATH}"
+DOCKER_BACKUP_PATH = f"/var/www/html/backups/{BACKUP_FILE_NAME}"
+DOCKER_COMMAND = f"php /var/www/html/maintenance/run.php --server wiki.fogcityrocketry.com /var/www/html/maintenance/SqliteMaintenance.php --backup-to /var/www/html/backups/{BACKUP_FILE_NAME}"
+HOME_DIRECTORY = '/home/ethanhanlon'
 
 # Run PHP SQLite maintenance script inside Docker container
-EXIT_CODE_ONE = subprocess.call(['sudo', 'docker', 'exec', DOCKER_CONTAINER_NAME, DOCKER_COMMAND])
+EXIT_CODE_ONE = subprocess.call(
+    [
+        'sudo', 
+        'docker', 
+        'exec', 
+        "FCR_Wiki", 
+        "php",
+        "/var/www/html/maintenance/run.php",
+        "--server",
+        "wiki.fogcityrocketry.com",
+        "/var/www/html/maintenance/SqliteMaintenance.php",
+        "--backup-to",
+        DOCKER_BACKUP_PATH
+    ]
+)
 
 # Copy backup file to host
-EXIT_CODE_TWO = subprocess.call(['sudo', 'docker', 'cp', DOCKER_BACKUP_PATH, f"~/backups/{BACKUP_FILE_NAME}"])
+EXIT_CODE_TWO = subprocess.call(
+    [
+        'sudo',
+        'docker',
+        'cp',
+        f"FCR_Wiki:{DOCKER_BACKUP_PATH}",
+        f"{HOME_DIRECTORY}/backups/{BACKUP_FILE_NAME}"
+    ]
+)
 
 # Log results
-LOG_FILE = '~/logs/backup.log'
+logging.basicConfig(filename=f"{HOME_DIRECTORY}/backups/backup.log", level=logging.DEBUG)
 TIMESTAMP = time.strftime('%Y-%m-%d %H:%M:%S')
-if EXIT_CODE_ONE == 0 and EXIT_CODE_TWO == 0:
-    MESSAGE = TIMESTAMP + ' Backup successful.'
-    subprocess.call(['echo', MESSAGE, '>>', LOG_FILE])
-else:
-    MESSAGE = TIMESTAMP + ' Backup failed.'
-    subprocess.call(['echo', MESSAGE, '>>', LOG_FILE])
-    sys.exit(1)
+
+MESSAGE = f"\"{TIMESTAMP} Backup successful.\"" if EXIT_CODE_ONE == 0 and EXIT_CODE_TWO == 0 else f"\"{TIMESTAMP} Backup failed.\""
+
+logging.info(MESSAGE)
+
+sys.exit(0 if EXIT_CODE_ONE == 0 and EXIT_CODE_TWO == 0 else 1)
